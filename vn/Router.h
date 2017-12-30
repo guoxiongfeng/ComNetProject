@@ -73,16 +73,21 @@ class Router {
 		
 		void Inform_Neighbors();
 		
+		void Deliver_Message(Datagram & data);
+		
+		int Get_Neighbor_Cost(string neighbor_ip);
 		//string choosePath(string &dst_ip);
 		
 	public:
 		Router(string local_ip, int port);
 
 		string Get_Local_IP() { return local_ip; }
+		
+		void Communication(string msg, string dst);
 
 		void Send(string ip, Datagram & data);
 		
-		void Receive();
+		pthread_t Receive();
 		
 		void Keep_Alive();
 		

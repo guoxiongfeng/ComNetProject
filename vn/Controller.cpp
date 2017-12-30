@@ -3,7 +3,7 @@
 #include <iostream>
 #include "Helper.h"
 #include <Winsock2.h>
-#define MAX_TTL 100
+
  
 Controller::Controller(string local_ip, int port) {
 	this->local_ip = local_ip;
@@ -43,12 +43,12 @@ void Controller::UpdateInterval() {
 void * Controller::Update(void * data) {
 	Controller *instance = (Controller *)data;
 	while (1) {
-		Sleep(2000);
+		Sleep(4000);
 		//清空之前的edges信息。 
 		instance->InitEdges();
 		instance->RequestState();
 		//等待1s响应时间。如还没有接收到， 就不管。（即超时认为不在线 
-		Sleep(1000); 
+		Sleep(2000); 
 		for (int i = 0; i < instance->nodes.size(); ++i) {
 			vector<LocalRoute> ith_node_info = instance->dijkstra_i(i);
 			instance->SendLocalRoute(instance->nodes[i], ith_node_info);
@@ -58,11 +58,10 @@ void * Controller::Update(void * data) {
 	
 void Controller::SendLocalRoute(string dst_ip, vector<LocalRoute> & rt_table) {
 	//Tostring 把Route结构体 转化为string （序列化） 
-	for (int i = 0; i < rt_table.size(); ++i) {
-		Datagram d(stringfy(rt_table[i]), local_ip, dst_ip);
-		Send(dst_ip, port, d); 
-	}
-
+	string rt_info = string("11") + stringfy(rt_table);
+	//std::cout << dst_ip << "   DIJKSTRA:" << rt_info << std::endl << std::endl << std::endl;
+	Datagram d(rt_info, local_ip, dst_ip);
+	Send(dst_ip, port, d); 
 } 
 
 void Controller::Receive() {
@@ -87,15 +86,32 @@ void * Controller::ListenClient(void * data) {
 	while (recvfrom(socket_rec, buffer, sizeof(buffer), 0, (struct sockaddr*)&client, &len) != SOCKET_ERROR) {
 		Datagram datagram = ToDatagram(string(buffer));
 		//不是目的地的报文直接扔了（不处理）
-		if (datagram.dst_ip == instance->local_ip) {
+		if (datagram.dst_ip == instance->local_ip && datagram.msg.substr(0, 2) == "10") {
 			//debug信息 
-			cout <<"[receive] "<< "msg:"<< datagram.msg << " src:" << datagram.src_ip << " dst:" << datagram.dst_ip << " dst_port:" << datagram.dst_port << endl;
+			//cout <<"[receive] "<< "msg:"<< datagram.msg << " src:" << datagram.src_ip << " dst:" << datagram.dst_ip << " dst_port:" << datagram.dst_port << endl;
 			//只可能是来自client的路由信息。 
 			//ToRoute：把msg 反序列化为 Route 结构。 
-			Route r_info = ToRoute(datagram.msg); 
+			vector<Route> r_info = ToRouteItems(datagram.msg.substr(2)); 
 			//更新边。
 			//send 一个Route条目就发一个报文比较好解析。 
-			instance->edges[instance->index[datagram.src_ip]][instance->index[r_info.dst_ip]] = r_info.cost;
+			for (int i = 0; i < r_info.size(); ++i) {
+				if (instance->index.count(r_info[i].dst_ip) == 0) {
+					instance->index[r_info[i].dst_ip] = instance->nodes.size();
+					instance->nodes.push_back(r_info[i].dst_ip);
+					vector<int> tmp(instance->nodes.size(), MAX_TTL); // add row
+					//add column
+					for (int j = 0; j < instance->edges.size(); ++j) {
+						instance->edges[j].push_back(MAX_TTL);
+					}
+					instance->edges.push_back(tmp);
+					instance->edges[instance->edges.size() - 1][instance->edges.size() - 1] = 0;
+				}
+				cout << datagram.src_ip << "   " << r_info[i].dst_ip << "   " << r_info[i].cost << endl;
+				if (r_info[i].dst_ip == instance->local_ip) continue; //不处理和controller连通的边。 
+				
+				instance->edges[instance->index[datagram.src_ip]][instance->index[r_info[i].dst_ip]] = r_info[i].cost;
+				instance->edges[instance->index[r_info[i].dst_ip]][instance->index[datagram.src_ip]] = r_info[i].cost;
+			}
 		}
 	}
 }
@@ -132,7 +148,6 @@ void Controller::Send(string dst_ip, int dst_port, Datagram & data) {
     if (sendto(socket1, buffer.c_str(), strlen(buffer.c_str()), 0, (struct sockaddr*)&server, len) != SOCKET_ERROR) { 
 		cout << "Send to " << dst_ip << " success." << endl;
 	} 
-	cout << "[send] dst:"<<dst_ip<<" port:"<<dst_port<<" msg:"<<data.msg << endl;
 }
 
 vector<LocalRoute> Controller::dijkstra_i(int src) {

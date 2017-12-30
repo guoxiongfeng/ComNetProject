@@ -1,5 +1,7 @@
 #include "Router.h"
+#include "Controller.h"
 #include <vector>
+#include <iostream>
 
 void Socket_init(int port, SOCKET & socket1, sockaddr_in & local) {
 	local.sin_family = AF_INET;
@@ -19,6 +21,7 @@ int ToNum(string &s) {
 
 //°ÑÒ»¸öÕýÕûÊý×ª»¯Îª×Ö·û´®ÐÎÊ½¡£ 
 string stringfy(int k) {
+	if (k == 0) return "0";
 	string s;
 	while (k) {
 		s.insert(s.begin(), k % 10 + '0');
@@ -27,22 +30,6 @@ string stringfy(int k) {
 	return s;
 }
 
-//serializeÒ»¸ödatagram 
-string stringfy(Datagram & datagram) {
-	string s = datagram.msg + "#" + datagram.src_ip + "#" + datagram.dst_ip + "#";
-	return s;
-}
-
-//serializeÒ»¸öRoute
-string stringfy(Route & route) {
-	string s = route.dst_ip + "$" + stringfy(route.cost) + "$";
-	return s;
-}
-
-string stringfy(LocalRoute & rt) {
-	string s = rt.dst_ip + "$" + rt.next_hop + "$" + stringfy(rt.cost) + "$";
-	return s;
-}
 
 //Í¬PythonÖÐ split£¬ ½öÖ§³Ö×Ö·û·Ö¸î¡£ 
 vector<string> split(string s, char x) {
@@ -56,6 +43,47 @@ vector<string> split(string s, char x) {
 	}
 	return ans;
 }
+
+
+//serializeÒ»¸ödatagram 
+string stringfy(Datagram & datagram) {
+	string s = datagram.msg + "#" + datagram.src_ip + "#" + datagram.dst_ip + "#";
+	return s;
+}
+
+//serializeÒ»¸öRoute
+string stringfy(Route & route) {
+	string s = route.dst_ip + "$" + stringfy(route.cost) + "$";
+	return s;
+}
+
+
+string stringfy(LocalRoute & rt) {
+	string s = rt.dst_ip + "$" + rt.next_hop + "$" + stringfy(rt.cost) + "$";
+	return s;
+}
+
+string stringfy(vector<LocalRoute> & vector_rt) {
+	string ans = "";
+	for (int i = 0; i < vector_rt.size(); ++i) {
+		if (vector_rt[i].cost < MAX_TTL) {
+			ans += stringfy(vector_rt[i]);
+		}
+	}
+	return ans;
+}
+vector<LocalRoute> ToLocalRouteItems(string s) {
+	vector<string> tmp = split(s, '$');
+	vector<LocalRoute> local_rt;
+	for (int i = 0; i < tmp.size(); i += 3) {
+		LocalRoute local_r(tmp[i], tmp[i + 1], ToNum(tmp[i + 2]));
+		local_rt.push_back(local_r);
+	}
+	return local_rt;
+}
+
+
+
 
 vector<Route> ToRouteItems(string s) {
 	vector<string> tmp = split(s, '$');

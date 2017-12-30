@@ -16,6 +16,7 @@ void runInRouter() {
 void runInController() {
     Controller center_controller(ip, port);
     center_controller.UpdateInterval();
+    center_controller.Receive();
     while(1); 
 }
 

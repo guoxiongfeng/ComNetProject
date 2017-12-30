@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <signal.h> 
 #include "UI.h"
 
 using namespace std;
@@ -142,16 +143,18 @@ void RouterUI::ChangeRoutingProtocol(Router& router) {
 }
 
 void SendAndRecvUI::SendingAndReceiving(Router& router) {
-	router.Receive();
+	pthread_t rcv_thread = router.Receive();
+	router.Keep_Alive();
 	while (true) {
 		//system("cls");
 		string msg, dst_ip;
 		cout << "Please enter message and destination IP address: " << endl;
 		cin >> msg;
-		if (msg == "exit")
+		if (msg == "exit") {
+			//pthread_kill(rcv_thread, 3);
 			break;
+		}
 		cin >> dst_ip;
-		Datagram data(msg, router.Get_Local_IP(), dst_ip);
-		router.Send(dst_ip, data);
+		router.Communication(msg, dst_ip);
 	}
 }

@@ -4,6 +4,9 @@
 #include "Router.h"
 #include <map>
 #include <vector>
+
+#define MAX_TTL 100
+
 class Controller{
 	public :
 		Controller(string local_ip, int port);
@@ -15,7 +18,7 @@ class Controller{
 		void SendLocalRoute(string dst_ip, vector<LocalRoute> & rt_table);
 		
 		//Listen 和 Receive 考虑了一下，还是写一个和Router 不同的。
-		
+		void Receive();
 		//定时执行。
 		void UpdateInterval(); 
 		
@@ -33,7 +36,6 @@ class Controller{
 		void ControllerInit();
 		vector<LocalRoute> dijkstra_i(int i);
 		static void * Update(void * data);
-		void Receive();
 		static void *ListenClient(void * data);
 		void InitEdges(); 
 		void Send(string ip, int port, Datagram & data);

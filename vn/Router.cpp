@@ -1,4 +1,3 @@
-
 #include <Winsock2.h>
 #include <string.h>
 #include <time.h>
@@ -24,26 +23,32 @@ void * Router::Listen(void * data) {
 	while (recvfrom(socket_rec, buffer, sizeof(buffer), 0, (struct sockaddr*)&client, &len) != SOCKET_ERROR) {
 		Datagram datagram = ToDatagram(string(buffer));
 		//is dest? output : route.
-		if (datagram.dst_ip == ((Router*)data)->local_ip) {
-			cout <<  datagram.msg << "   " << datagram.src_ip << "   " << datagram.dst_ip << endl;
-		} else if (datagram.src_ip == ((Router*)data)->local_ip) {
+		if (datagram.src_ip == ((Router*)data)->local_ip) {
 			continue;
-		} else {
+		} else if (datagram.dst_ip != this_router->local_ip) { 
+			this_router->Deliver_Message(datagram);
+			cout << "Transmit packet to " << datagram.dst_ip << "..." << endl;
+		}
+		else {
+			cout << datagram.msg << "   " << datagram.src_ip << "   " << datagram.dst_ip << endl;
 			//temp deal : boardcast.
 			if (datagram.msg.substr(0, 2) == "00") {
 				vector<Route> routes = ToRouteItems(datagram.msg.substr(2));
 				this_router->Route_Table_Calculate(routes, datagram.src_ip);
-				this_router->Inform_Neighbors();
+				//this_router->Inform_Neighbors();
 			} else if (datagram.msg.substr(0, 2) == "01") {
-				cout << "Transmit packet to " << datagram.dst_ip << "..." << endl;
-				this_router->Boardcast(datagram);
+				cout << "Receive message: " << datagram.msg << endl;
 			} else if (datagram.msg.substr(0, 2) == "10") {                             // å¤„ç†æ¥è‡ªcenterä¸»æœºçš„ä¿¡æ¯
 				//yanglikun
+				string route_info = "10";
 				for (int i = 0; i < this_router->neighbours.size(); ++i) {
 					Route r(this_router->neighbours[i].first, this_router->neighbours[i].second);
-					Datagram d(stringfy(r), this_router->local_ip, datagram.src_ip);
-					this_router->Send(datagram.src_ip, d);
+					route_info += stringfy(r);
 				}
+				Datagram d(route_info, this_router->local_ip, datagram.src_ip);
+				this_router->Send(datagram.src_ip, d);
+			} else if (datagram.msg.substr(0, 2) == "11") {  
+				this_router->local_table = ToLocalRouteItems(datagram.msg.substr(2));
 			}
 		}
 	}
@@ -78,16 +83,38 @@ void Router::Keep_Alive() {
     pthread_create(&tid, &attr, Regular_Broadcast, (void *)this);
 }
 
+int Router::Get_Neighbor_Cost(string neighbor_ip) {
+	int c = -1;
+	for (int k = 0; k < neighbours.size(); k++) {
+		if (neighbours[k].first == neighbor_ip) {
+			c = neighbours[k].second;
+			return c;
+		}
+	}
+	return c;
+} 
+
 void Router::Route_Table_Calculate(vector<Route> routes, string src) {
-	for (int i = 0; i < local_table.size(); i++) {
-		for (int j = 0; j < routes.size(); j++) {
-			if (local_table[i].dst_ip == routes[j].dst_ip) {
-				if (local_table[i].cost > routes[j].cost) {
-					local_table[i].next_hop = src;
-					local_table[i].cost = routes[j].cost;
+	int c = Get_Neighbor_Cost(src);
+	if (c == -1) {
+		return;
+	}
+	for (int i = 0; i < routes.size(); i++) {
+		if (routes[i].dst_ip == this->local_ip) {
+			continue;
+		}
+		int j;
+		for (j = 0; j < local_table.size(); j++) {
+			if (local_table[j].dst_ip == routes[i].dst_ip) {
+				if (local_table[j].cost > routes[i].cost + c) {
+					local_table[j].next_hop = src;
+					local_table[j].cost = routes[i].cost + c;
 				}
 				break; 
 			}
+		}
+		if (j == local_table.size()) {
+			local_table.push_back(LocalRoute(routes[i].dst_ip, src, routes[i].cost + c));
 		}
 	}
 }
@@ -106,20 +133,29 @@ void Router::Inform_Neighbors() {
 	}
 }
 
-void Router::Send(string dst_ip, Datagram & data) {
-	string next_hop = "0.0.0.0";
-	for (int i = 0; i < local_table.size(); ++i) {
-		if (dst_ip == local_table[i].dst_ip) {
+void Router::Communication(string msg, string dst) {
+	string proto = "01";
+	Datagram data(proto + msg, this->local_ip, dst);
+	Deliver_Message(data);
+} 
+
+void Router::Deliver_Message(Datagram & datagram) {
+	string next_hop = "";
+	int i;
+	for (i = 0; i < local_table.size(); ++i) {
+		if (datagram.dst_ip == local_table[i].dst_ip) {
 			next_hop = local_table[i].next_hop;
 			break;
 		}
 	}
-	if (next_hop == "0.0.0.0") {
-		//Ã»ÓÐÏà¹ØÂ·ÓÉÐÅÏ¢
+	if (i == local_table.size()) {
 		cout << "Can not find path."<< endl;
 		return ; 
 	}
-	
+	Send(next_hop, datagram);
+}
+
+void Router::Send(string dst_ip, Datagram & data) {
 	SOCKET socket1;
     WSADATA wsaData;
     int ErrorCode;
@@ -137,15 +173,16 @@ void Router::Send(string dst_ip, Datagram & data) {
     socket1 = socket(AF_INET, SOCK_DGRAM, 0);
     string buffer = stringfy(data);
     if (sendto(socket1, buffer.c_str(), strlen(buffer.c_str()), 0, (struct sockaddr*)&server, len) != SOCKET_ERROR) { 
-		cout << "Send to " << next_hop << " success." << endl;
+		cout << "Send to " << dst_ip << " success." << endl;
 	} 
 }
 
-void Router::Receive() {
+pthread_t Router::Receive() {
 	pthread_t tid;
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_create(&tid, &attr, Listen, (void *)this);
+    return tid;
 }
 
 Router::Router(string ip, int port) {
@@ -162,7 +199,6 @@ void Router::Get_Neightbors(){
 		vector<string> tmp = split(temp, ' ');
 		if (temp.size() != 0) {
 			neighbours.push_back(pair<string, int>(tmp[0], ToNum(tmp[1])));
-			//local_table.push_back(LocalRoute(tmp[0], this->local_ip, ToNum(tmp[1])));
 			local_table.push_back(LocalRoute(tmp[0], tmp[0], ToNum(tmp[1])));
 		}		
 	}

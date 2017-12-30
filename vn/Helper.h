@@ -3,6 +3,10 @@
 #include "Router.h"
 #include <vector>
 
+#define DOWN 0
+#define LS 1
+#define DV 2
+
 void Socket_init(int port, SOCKET & socket1, sockaddr_in & local);
 
 //把一个字符串转化为正整数 
@@ -29,5 +33,8 @@ Datagram ToDatagram(string s);
 
 //yanglikun
 Route ToRoute(string s);
+
+string stringfy(vector<LocalRoute> & vector_rt);
+vector<LocalRoute> ToLocalRouteItems(string s);
 
 #endif
