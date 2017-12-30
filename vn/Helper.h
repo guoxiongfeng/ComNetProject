@@ -1,0 +1,33 @@
+#ifndef HELPPER_HPP
+#define HELPPER_HPP
+#include "Router.h"
+#include <vector>
+
+void Socket_init(int port, SOCKET & socket1, sockaddr_in & local);
+
+//把一个字符串转化为正整数 
+int ToNum(string &s);
+
+//把一个正整数转化为字符串形式。 
+string stringfy(int k);
+
+//serialize一个datagram 
+string stringfy(Datagram & datagram);
+
+//serialize一个Route
+string stringfy(Route & route);
+
+string stringfy(LocalRoute & rt);
+
+//同Python中 split， 仅支持字符分割。 
+vector<string> split(string s, char x);
+
+vector<Route> ToRouteItems(string s);
+
+//把一个序列化字符串deserialize， 转化回datagram格式。 
+Datagram ToDatagram(string s);
+
+//yanglikun
+Route ToRoute(string s);
+
+#endif
