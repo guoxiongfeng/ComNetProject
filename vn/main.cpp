@@ -1,32 +1,45 @@
 #include "Router.h"
 #include "Controller.h"
 #include "UI.h"
+#include "Helper.h"
 #include <iostream>
+#include <fstream>
 using namespace std;
 
-string ip;
+string local_ip;
 int port;
 
 
 void runInRouter() {
-    Router router(ip, port);
+    Router router(local_ip, ROUTER_PORT);
     RouterUI::Operating(router);
 }
 
 void runInController() {
-    Controller center_controller(ip, port);
+    Controller center_controller(local_ip, CONTROLLER_PORT);
     center_controller.UpdateInterval();
     center_controller.Receive();
     while(1); 
 }
 
+//读取本机IP
+void getLocalIP() {
+	cout << endl << "Getting Local Configuration，Please wait..." << endl << endl; 
+	ifstream fin;
+	fin.open(".\\neighbors.txt");
+	string temp;
+	getline(fin, temp); //第一行为本机IP。
+	local_ip = temp;
+	return;
+} 
+
 int main(int argc, char** argv) {
     string type;
-    cout << "Roter or Controller?  ( 0 -> Router | other -> Controller )" << endl;
+    cout << "Router or Controller?  ( 0 -> Router | other -> Controller )" << endl;
     cin >> type;
-    cout << "Ip and port?  ( 0.0.0.0 8080 )" << endl;
-    cin >> ip >> port;
-
+	
+	getLocalIP();
+	
     if (type == "0") { // Router 
         runInRouter();
     } else {     // Controller 

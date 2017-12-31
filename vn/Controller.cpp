@@ -12,6 +12,7 @@ Controller::Controller(string local_ip, int port) {
 }
 
 void Controller::ControllerInit() {
+	Debug(string("Initializing Controller, Please wait..."));
 	ifstream fin;
 	fin.open(".\\route_nodes.txt");
 	string temp;
@@ -21,13 +22,14 @@ void Controller::ControllerInit() {
 	}
 	fin.close();
 	InitEdges();
+	Debug(string("Initializing Successfully."));
 }
 
 void Controller::RequestState() {
 	for (int i = 0; i < nodes.size(); ++i) {
 		Datagram d("10", local_ip, nodes[i]);
 		//有直连， 直接发过去。 
-		Send(nodes[i], port, d);
+		Send(nodes[i], ROUTER_PORT, d);
 		//router 接到Controller 的报文， 只有两种情况， 一个是Request， 一个是Response。 
 		//分别对应Controller的请求和返回结果。 
 	}
@@ -61,7 +63,7 @@ void Controller::SendLocalRoute(string dst_ip, vector<LocalRoute> & rt_table) {
 	string rt_info = string("11") + stringfy(rt_table);
 	//std::cout << dst_ip << "   DIJKSTRA:" << rt_info << std::endl << std::endl << std::endl;
 	Datagram d(rt_info, local_ip, dst_ip);
-	Send(dst_ip, port, d); 
+	Send(dst_ip, ROUTER_PORT, d); 
 } 
 
 void Controller::Receive() {
@@ -107,7 +109,7 @@ void * Controller::ListenClient(void * data) {
 					instance->edges[instance->edges.size() - 1][instance->edges.size() - 1] = 0;
 				}
 				cout << datagram.src_ip << "   " << r_info[i].dst_ip << "   " << r_info[i].cost << endl;
-				if (r_info[i].dst_ip == instance->local_ip) continue; //不处理和controller连通的边。 
+				//if (r_info[i].dst_ip == instance->local_ip) continue; //不处理和controller连通的边。 
 				
 				instance->edges[instance->index[datagram.src_ip]][instance->index[r_info[i].dst_ip]] = r_info[i].cost;
 				//instance->edges[instance->index[r_info[i].dst_ip]][instance->index[datagram.src_ip]] = r_info[i].cost;
@@ -133,7 +135,7 @@ void Controller::Send(string dst_ip, int dst_port, Datagram & data) {
     WSADATA wsaData;
     int ErrorCode;
     if (WSAStartup(MAKEWORD(2,1), &wsaData)) {
-    	cout << "Winsock initiate failed!" << endl;
+    	Debug(string("Winsock initiate failed!"));
         WSACleanup();
         return;
     }
@@ -146,7 +148,7 @@ void Controller::Send(string dst_ip, int dst_port, Datagram & data) {
     socket1 = socket(AF_INET, SOCK_DGRAM, 0);
     string buffer = stringfy(data);
     if (sendto(socket1, buffer.c_str(), strlen(buffer.c_str()), 0, (struct sockaddr*)&server, len) != SOCKET_ERROR) { 
-		cout << "Send to " << dst_ip << " success." << endl;
+		Debug(string("Send to " + dst_ip + " success."));
 	} 
 }
 

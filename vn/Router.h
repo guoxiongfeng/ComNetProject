@@ -95,7 +95,7 @@ class Router {
 		
 		void Communication(string msg, string dst);
 
-		void Send(string ip, Datagram & data);
+		void Send(string ip, int port, Datagram & data);
 		
 		pthread_t Receive();
 		

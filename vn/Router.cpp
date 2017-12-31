@@ -23,14 +23,14 @@ void * Router::Listen(void * data) {
 	while (recvfrom(socket_rec, buffer, sizeof(buffer), 0, (struct sockaddr*)&client, &len) != SOCKET_ERROR) {
 		Datagram datagram = ToDatagram(string(buffer));
 		//is dest? output : route.
-		if (datagram.src_ip == ((Router*)data)->local_ip) {
+		if (datagram.msg[0] != '1' && datagram.src_ip == ((Router*)data)->local_ip) {
 			continue;
 		} else if (datagram.dst_ip != this_router->local_ip) { 
 			this_router->Deliver_Message(datagram);
-			cout << "Transmit packet to " << datagram.dst_ip << "..." << endl;
+			Debug(string("Transmit packet to " + datagram.dst_ip + "..."));
 		}
 		else {
-			cout << datagram.msg << "   " << datagram.src_ip << "   " << datagram.dst_ip << endl;
+			Debug(string(datagram.msg + "   " + datagram.src_ip + "   " + datagram.dst_ip));
 			//temp deal : boardcast.
 			if (datagram.msg.substr(0, 2) == "00") {
 				vector<Route> routes = ToRouteItems(datagram.msg.substr(2));
@@ -40,7 +40,7 @@ void * Router::Listen(void * data) {
 				this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].cost = this_router->Get_Neighbor_Cost(datagram.src_ip);
 				//this_router->Inform_Neighbors();
 			} else if (datagram.msg.substr(0, 2) == "01") {
-				cout << "Receive message: " << datagram.msg << endl;
+				Debug(string("Receive message: " + datagram.msg));
 			} else if (datagram.msg.substr(0, 2) == "10") {                             // å¤„ç†æ¥è‡ªcenterä¸»æœºçš„ä¿¡æ¯
 				//yanglikun
 				string route_info = "10";
@@ -49,7 +49,7 @@ void * Router::Listen(void * data) {
 					route_info += stringfy(r);
 				}
 				Datagram d(route_info, this_router->local_ip, datagram.src_ip);
-				this_router->Send(datagram.src_ip, d);
+				this_router->Send(datagram.src_ip, CONTROLLER_PORT, d);
 			} else if (datagram.msg.substr(0, 2) == "11") {  
 				this_router->local_table = ToLocalRouteItems(datagram.msg.substr(2));
 			} else if (datagram.msg.substr(0, 2) == "02") {
@@ -62,7 +62,7 @@ void * Router::Listen(void * data) {
 void Router::Respond_Inform(string dst_ip) {
 	string msg = "02";
 	Datagram data(msg, this->local_ip, dst_ip);
-	Send(dst_ip, data);
+	Send(dst_ip, this->port, data);
 }
 
 bool trigger = true;
@@ -166,7 +166,7 @@ void Router::Inform_Neighbors() {
 			Route rt = Route(local_table[j].dst_ip, local_table[j].cost);
 			send_rip.msg = send_rip.msg + stringfy(rt);
 		}
-		this->Send(neighbours[i].first, send_rip);
+		this->Send(neighbours[i].first, this->port, send_rip);
 		respond_time[neighbours[i].first] = clock();
 	}
 }
@@ -187,18 +187,18 @@ void Router::Deliver_Message(Datagram & datagram) {
 		}
 	}
 	if (i == local_table.size()) {
-		cout << "Can not find path."<< endl;
+		Debug(string("Can not find path."));
 		return ; 
 	}
-	Send(next_hop, datagram);
+	Send(next_hop, this->port, datagram);
 }
-
-void Router::Send(string dst_ip, Datagram & data) {
+//ÎªÁËÇø·Ö²»Í¬·¢ËÍ¶Ë¿Ú¡£ 
+void Router::Send(string dst_ip, int aim_port, Datagram & data) {
 	SOCKET socket1;
     WSADATA wsaData;
     int ErrorCode;
     if (WSAStartup(MAKEWORD(2,1), &wsaData)) {
-    	cout << "Winsock initiate failed!" << endl;
+    	Debug(string("Winsock initiate failed!"));
         WSACleanup();
         return;
     }
@@ -206,12 +206,12 @@ void Router::Send(string dst_ip, Datagram & data) {
     struct sockaddr_in server;
     int len = sizeof(server);
     server.sin_family = AF_INET;
-    server.sin_port = htons(this->port);
+    server.sin_port = htons(aim_port);
     server.sin_addr.s_addr = inet_addr(dst_ip.c_str());
     socket1 = socket(AF_INET, SOCK_DGRAM, 0);
     string buffer = stringfy(data);
     if (sendto(socket1, buffer.c_str(), strlen(buffer.c_str()), 0, (struct sockaddr*)&server, len) != SOCKET_ERROR) { 
-		cout << "Send to " << dst_ip << " success." << endl;
+		Debug(string("Send to " + dst_ip + " success."));
 	} 
 }
 
@@ -233,6 +233,7 @@ void Router::Get_Neightbors(){
 	ifstream fin;
 	fin.open(".\\neighbors.txt");
 	string temp;
+	getline(fin, temp); //Ìø¹ýµÚÒ»ÐÐ£¬ µÚÒ»ÐÐÎª±¾»úIP¡£ 
 	while (getline(fin, temp)) {
 		vector<string> tmp = split(temp, ' ');
 		if (temp.size() != 0) {
@@ -268,15 +269,14 @@ bool Router::Modify_Route(string dst_ip, string next_hop, int cost) {
 			return true;
 		}
 	}
-
-	cout << "cannot find route whose destinaton IP address is " << dst_ip << "!" << endl;
+	Debug(string("Cannot find route whose destinaton IP address is " + dst_ip + "!"));
 	return false;
 }
 
 bool Router::Add_Route(string dst_ip, string next_hop, int cost) {
 	for (int i = 0; i < neighbours.size(); ++i) {
 		if (neighbours[i].first == dst_ip) {
-			cout << "destinaton IP address " << dst_ip << " has been existed in the route table!" << endl;
+			Debug(string("destinaton IP address " + dst_ip + " has been existed in the route table!"));
 			return false;
 		}
 	}
@@ -299,25 +299,25 @@ bool Router::Delete_Route(string dst_ip) {
 			return true;
 		}
 	}
-
-	cout << "cannot find route whose destinaton IP address is " << dst_ip << "!" << endl;
+	Debug(string("Cannot find route whose destinaton IP address is " + dst_ip + "!"));
 	return false;
 }
 
 void Router::Print_Routes() {
 	for (int i = 0; i < local_table.size(); i++) {
-		cout << "Dst IP: " << local_table[i].dst_ip << " / Next Hop: " << local_table[i].next_hop << " / Cost: " << local_table[i].cost << endl;
+		Debug(string("Dst IP: " + local_table[i].dst_ip + " / Next Hop: " +
+		local_table[i].next_hop + " / Cost: " + stringfy(local_table[i].cost)));
 	}
 	cout << endl;
 }
 
 void Router::Boardcast(Datagram & data) {
 	for(int i = 0; i < neighbours.size(); ++i) {
-		if (neighbours[i].first == local_ip)  {
+		if (neighbours[i].first == local_ip) {
 			continue;
 		}
-		cout << "Boardcast to " << neighbours[i].first << endl;
-		Send(neighbours[i].first, data);
+		Debug(string("Boardcast to " + neighbours[i].first));
+		Send(neighbours[i].first, this->port, data);
 	}
 }
 

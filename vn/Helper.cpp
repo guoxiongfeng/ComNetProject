@@ -107,3 +107,9 @@ Route ToRoute(string s) {
 	vector<string> v = split(s, '$');
 	return Route(v[0], ToNum(v[1]));
 }
+
+void Debug(string s) {
+	cout << endl << s << endl;
+}
+
+
