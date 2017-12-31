@@ -21,13 +21,13 @@ void runInController() {
 }
 
 int main(int argc, char** argv) {
-    int type;
-    cout << "Roter or Controller?  ( 0 -> Router | 1 -> Controller )" << endl;
+    string type;
+    cout << "Roter or Controller?  ( 0 -> Router | other -> Controller )" << endl;
     cin >> type;
     cout << "Ip and port?  ( 0.0.0.0 8080 )" << endl;
     cin >> ip >> port;
 
-    if (!type) { // Router 
+    if (type == "0") { // Router 
         runInRouter();
     } else {     // Controller 
         runInController();

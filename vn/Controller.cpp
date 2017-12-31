@@ -110,7 +110,7 @@ void * Controller::ListenClient(void * data) {
 				if (r_info[i].dst_ip == instance->local_ip) continue; //不处理和controller连通的边。 
 				
 				instance->edges[instance->index[datagram.src_ip]][instance->index[r_info[i].dst_ip]] = r_info[i].cost;
-				instance->edges[instance->index[r_info[i].dst_ip]][instance->index[datagram.src_ip]] = r_info[i].cost;
+				//instance->edges[instance->index[r_info[i].dst_ip]][instance->index[datagram.src_ip]] = r_info[i].cost;
 			}
 		}
 	}
@@ -150,10 +150,24 @@ void Controller::Send(string dst_ip, int dst_port, Datagram & data) {
 	} 
 }
 
+void Deal_Down(vector<vector<int> > & edges) {
+	for (int i = 0; i < edges.size(); ++i) {
+		for (int j = 0; j < edges.size(); ++j) {
+			if (edges[i][j] >= MAX_TTL || edges[j][i] >= MAX_TTL) {
+				edges[i][j] = MAX_TTL;
+				edges[j][i] = MAX_TTL;
+			}
+		}
+	}
+}
+
 vector<LocalRoute> Controller::dijkstra_i(int src) {
 	vector<int> next_hop(nodes.size(), -1);
 	vector<bool> visit(nodes.size());
 	vector<int> D(nodes.size());
+	
+	Deal_Down(edges);
+	
 	//初始距离 
 	for (int i = 0; i < edges.size(); ++i) {
 		D[i] = edges[src][i];

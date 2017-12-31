@@ -10,41 +10,33 @@ void RouterUI::Operating(Router& router) {
 	RouterUI::RouterManageUI();
 
 	do {
-		int oper;
+		string oper;
 		cin >> oper;
-		while (oper < 1 || oper > 5) {
-			cout << "instruction error! please enter again: ";
-			cin >> oper;
-		}
-
-		switch (oper) {
-			case 1:
+		if (oper == "1") {
 				RouterUI::ShowRouterTable(router);
 				cout << "press any key to go back..." << endl;
 				system("pause");
 				RouterUI::RouterManageUI();
-				break;
-			case 2:
+		} else if (oper == "2") {
 				RouterUI::ChangeRouterTable(router);
 				cout << "press any key to go back..." << endl;
 				system("pause");
 				RouterUI::RouterManageUI();
-				break;
-			case 3:
+		} else if (oper == "3") {
 				RouterUI::ChangeRoutingProtocol(router);
 				cout << "press any key to go back..." << endl;
 				system("pause");
 				RouterUI::RouterManageUI();
-				break;
-			case 4:
+		} else if (oper == "4") {
 				SendAndRecvUI::SendingAndReceiving(router);
 				cout << "press any key to go back..." << endl;
 				system("pause");
 				RouterUI::RouterManageUI();
-				break;
-			case 5:
+		} else if (oper == "5") {
 				cout << "thanks for using, bye." << endl;
-				return ;
+				break;
+		} else {
+				cout << "instruction error! please enter again: " << endl;
 		}
 	} while (true);
 }

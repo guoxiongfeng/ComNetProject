@@ -35,6 +35,9 @@ void * Router::Listen(void * data) {
 			if (datagram.msg.substr(0, 2) == "00") {
 				vector<Route> routes = ToRouteItems(datagram.msg.substr(2));
 				this_router->Route_Table_Calculate(routes, datagram.src_ip);
+				this_router->Respond_Inform(datagram.src_ip);
+				this_router->neighbor_up[datagram.src_ip] = true;
+				this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].cost = this_router->Get_Neighbor_Cost(datagram.src_ip);
 				//this_router->Inform_Neighbors();
 			} else if (datagram.msg.substr(0, 2) == "01") {
 				cout << "Receive message: " << datagram.msg << endl;
@@ -49,9 +52,17 @@ void * Router::Listen(void * data) {
 				this_router->Send(datagram.src_ip, d);
 			} else if (datagram.msg.substr(0, 2) == "11") {  
 				this_router->local_table = ToLocalRouteItems(datagram.msg.substr(2));
+			} else if (datagram.msg.substr(0, 2) == "02") {
+				this_router->respond_time[datagram.src_ip] = -1;
 			}
 		}
 	}
+}
+
+void Router::Respond_Inform(string dst_ip) {
+	string msg = "02";
+	Datagram data(msg, this->local_ip, dst_ip);
+	Send(dst_ip, data);
 }
 
 bool trigger = true;
@@ -66,11 +77,22 @@ void * Router::Regular_Broadcast(void * data) {
 	//yanglikun
 		if (trigger) {
 			clock_t b = clock();
-			if ((double)(b - a)/ CLOCKS_PER_SEC > 10) {
+			if ((double)(b - a) / CLOCKS_PER_SEC > 10) {
 				this_router->Inform_Neighbors();
 				a = clock();
 				this_router->Print_Routes();
 			}
+			for (int i = 0; i < this_router->neighbours.size(); i++) {
+				if (this_router->respond_time[this_router->neighbours[i].first] < 0) {
+					continue;
+				}
+				if ((double)(b - this_router->respond_time[this_router->neighbours[i].first]) / CLOCKS_PER_SEC > 3) {
+					this_router->local_table[this_router->Get_Local_Table_Index(this_router->neighbours[i].first)].cost = INT_MAX;
+					this_router->neighbor_up[this_router->neighbours[i].first] = false;
+					//this_router->neighbors[i].second = INT_MAX;
+				}
+			}
+			
 		}
 	}
 	
@@ -92,7 +114,20 @@ int Router::Get_Neighbor_Cost(string neighbor_ip) {
 		}
 	}
 	return c;
-} 
+}
+
+
+
+int Router::Get_Local_Table_Index(string ip) {
+	int c = -1;
+	for (int k = 0; k < local_table.size(); k++) {
+		if (local_table[k].dst_ip == ip) {
+			c = k;
+			return c;
+		}
+	}
+	return c;
+}
 
 void Router::Route_Table_Calculate(vector<Route> routes, string src) {
 	int c = Get_Neighbor_Cost(src);
@@ -106,14 +141,16 @@ void Router::Route_Table_Calculate(vector<Route> routes, string src) {
 		int j;
 		for (j = 0; j < local_table.size(); j++) {
 			if (local_table[j].dst_ip == routes[i].dst_ip) {
-				if (local_table[j].cost > routes[i].cost + c) {
+				if (routes[i].cost + c > local_table[j].cost && local_table[j].next_hop == src) {
+					local_table[j].cost = routes[i].cost + c;
+				} else if (local_table[j].cost > routes[i].cost + c && routes[i].cost != INT_MAX) {
 					local_table[j].next_hop = src;
 					local_table[j].cost = routes[i].cost + c;
 				}
 				break; 
 			}
 		}
-		if (j == local_table.size()) {
+		if (routes[i].cost != INT_MAX && j == local_table.size()) {
 			local_table.push_back(LocalRoute(routes[i].dst_ip, src, routes[i].cost + c));
 		}
 	}
@@ -130,6 +167,7 @@ void Router::Inform_Neighbors() {
 			send_rip.msg = send_rip.msg + stringfy(rt);
 		}
 		this->Send(neighbours[i].first, send_rip);
+		respond_time[neighbours[i].first] = clock();
 	}
 }
 
@@ -200,6 +238,8 @@ void Router::Get_Neightbors(){
 		if (temp.size() != 0) {
 			neighbours.push_back(pair<string, int>(tmp[0], ToNum(tmp[1])));
 			local_table.push_back(LocalRoute(tmp[0], tmp[0], ToNum(tmp[1])));
+			neighbor_up[tmp[0]] = false;
+			local_table[Get_Local_Table_Index(tmp[0])].cost = INT_MAX;
 		}		
 	}
 	fin.close();

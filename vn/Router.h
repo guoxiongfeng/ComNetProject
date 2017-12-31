@@ -3,7 +3,9 @@
 #include <Winsock2.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <stdlib.h>
+#include <time.h>
 
 using namespace std;
 
@@ -59,6 +61,10 @@ class Router {
 		
 		vector<LocalRoute> local_table;
 		
+		map<string, clock_t> respond_time;
+		
+		map<string, bool> neighbor_up;
+		
 		void Get_Neightbors();
 
 		void Save_Neighbors();
@@ -73,9 +79,13 @@ class Router {
 		
 		void Inform_Neighbors();
 		
+		void Respond_Inform(string dst_ip);
+		
 		void Deliver_Message(Datagram & data);
 		
 		int Get_Neighbor_Cost(string neighbor_ip);
+		
+		int Get_Local_Table_Index(string ip);
 		//string choosePath(string &dst_ip);
 		
 	public:
