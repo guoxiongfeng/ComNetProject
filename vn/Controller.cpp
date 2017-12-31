@@ -148,7 +148,7 @@ void Controller::Send(string dst_ip, int dst_port, Datagram & data) {
     socket1 = socket(AF_INET, SOCK_DGRAM, 0);
     string buffer = stringfy(data);
     if (sendto(socket1, buffer.c_str(), strlen(buffer.c_str()), 0, (struct sockaddr*)&server, len) != SOCKET_ERROR) { 
-		Debug(string("Send to " + dst_ip + " success."));
+		//Debug(string("Send to " + dst_ip + " success."));
 	} 
 }
 

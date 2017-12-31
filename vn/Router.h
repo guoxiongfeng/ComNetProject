@@ -69,8 +69,6 @@ class Router {
 
 		void Save_Neighbors();
 		
-		void Boardcast(Datagram & data);
-		
 		static void * Listen(void * data);
 		
 		static void * Regular_Broadcast(void * data);
@@ -84,6 +82,8 @@ class Router {
 		void Deliver_Message(Datagram & data);
 		
 		int Get_Neighbor_Cost(string neighbor_ip);
+		
+		LocalRoute Get_Local_Route(string dst_ip);
 		
 		int Get_Local_Table_Index(string ip);
 		//string choosePath(string &dst_ip);
