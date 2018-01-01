@@ -114,6 +114,7 @@ void * Controller::ListenClient(void * data) {
 				instance->edges[instance->index[datagram.src_ip]][instance->index[r_info[i].dst_ip]] = r_info[i].cost;
 				//instance->edges[instance->index[r_info[i].dst_ip]][instance->index[datagram.src_ip]] = r_info[i].cost;
 			}
+			cout << endl << endl << endl;
 		}
 	}
 }

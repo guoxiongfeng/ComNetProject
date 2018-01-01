@@ -35,11 +35,6 @@ void * Router::Listen(void * data) {
 				vector<Route> routes = ToRouteItems(datagram.msg.substr(2));
 				this_router->Route_Table_Calculate(routes, datagram.src_ip);
 				this_router->Respond_Inform(datagram.src_ip);
-				if (!this_router->neighbor_up[datagram.src_ip]) {
-					this_router->neighbor_up[datagram.src_ip] = true;
-					this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].cost = this_router->Get_Neighbor_Cost(datagram.src_ip);
-					this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].next_hop = datagram.src_ip;
-				}
 			} else if (datagram.msg.substr(0, 2) == "01") {
 				Debug(string("Receive message: " + datagram.msg.substr(2)));
 			} else if (datagram.msg.substr(0, 2) == "10") {                             // 处理来自center主机的信息
@@ -52,8 +47,13 @@ void * Router::Listen(void * data) {
 				this_router->Send(datagram.src_ip, CONTROLLER_PORT, d);
 			} else if (datagram.msg.substr(0, 2) == "11") {  
 				this_router->local_table = ToLocalRouteItems(datagram.msg.substr(2));
+				this_router->Print_Routes();
 			} else if (datagram.msg.substr(0, 2) == "02") {
-				this_router->respond_time[datagram.src_ip] = -1;
+				this_router->is_On[datagram.src_ip] = true;
+				if (this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].cost > this_router->Get_Neighbor_Cost(datagram.src_ip)) {
+					this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].cost = this_router->Get_Neighbor_Cost(datagram.src_ip);
+					this_router->local_table[this_router->Get_Local_Table_Index(datagram.src_ip)].next_hop = datagram.src_ip;
+				} 
 			}
 		}
 	}
@@ -72,10 +72,28 @@ void setTrigger(bool b) {
 
 void * Router::Regular_Broadcast(void * data) {
 	Router * this_router = (Router *)data;
-	clock_t a = clock();
 	while (1) {
 		if (trigger) {
-			clock_t b = clock();
+			this_router->Inform_Neighbors();
+			for (int i = 0; i < this_router->neighbours.size(); i++) {
+				this_router->is_On[this_router->neighbours[i].first] = false;
+			}
+			Sleep(1000);
+			for (int i = 0; i < this_router->neighbours.size(); i++) {
+				this_router->neighbor_up[this_router->neighbours[i].first] = this_router->is_On[this_router->neighbours[i].first];
+				if (this_router->is_On[this_router->neighbours[i].first] == false) {
+					//cout << "Disconnected: " << this_router->neighbours[i].first << endl;
+					for (int j = 0; j < this_router->local_table.size(); j++) {
+						if (this_router->local_table[j].next_hop == this_router->neighbours[i].first) {
+							this_router->local_table[j].cost = INT_MAX;
+						}
+					}
+					this_router->local_table[this_router->Get_Local_Table_Index(this_router->neighbours[i].first)].cost = INT_MAX;
+				}
+			}
+			Sleep(7000);
+			this_router->Print_Routes();
+			/*
 			if ((double)(b - a) / CLOCKS_PER_SEC > 10) {
 				this_router->Inform_Neighbors();
 				a = clock();
@@ -90,7 +108,7 @@ void * Router::Regular_Broadcast(void * data) {
 					this_router->neighbor_up[this_router->neighbours[i].first] = false;
 				}
 			}
-			
+			*/
 		}
 	}
 	
@@ -104,7 +122,7 @@ void Router::Keep_Alive() {
 }
 
 int Router::Get_Neighbor_Cost(string neighbor_ip) {
-	int c = -1;
+	int c = INT_MAX;
 	for (int k = 0; k < neighbours.size(); k++) {
 		if (neighbours[k].first == neighbor_ip) {
 			c = neighbours[k].second;
@@ -139,7 +157,7 @@ LocalRoute Router::Get_Local_Route(string dst_ip) {
 
 void Router::Route_Table_Calculate(vector<Route> routes, string src) {
 	LocalRoute local_to_mid = Get_Local_Route(src);
-	if (local_to_mid.dst_ip == "") {
+	if (local_to_mid.cost == INT_MAX || local_to_mid.dst_ip == "") {
 		return;
 	}
 	for (int i = 0; i < routes.size(); i++) {
@@ -149,9 +167,21 @@ void Router::Route_Table_Calculate(vector<Route> routes, string src) {
 		int j;
 		for (j = 0; j < local_table.size(); j++) {
 			if (local_table[j].dst_ip == routes[i].dst_ip) {
-				if (local_to_mid.cost != INT_MAX && routes[i].cost != INT_MAX && local_table[j].cost >= routes[i].cost + local_to_mid.cost) {
-					local_table[j].next_hop = local_to_mid.next_hop;
-					local_table[j].cost = routes[i].cost + local_to_mid.cost;
+				if (local_table[j].next_hop == local_to_mid.next_hop) {
+					if (routes[i].cost == INT_MAX) {
+						local_table[j].cost = INT_MAX;
+					} else if (Get_Neighbor_Cost(routes[i].dst_ip) == INT_MAX || Get_Neighbor_Cost(routes[i].dst_ip) > routes[i].cost + local_to_mid.cost  && neighbor_up[routes[i].dst_ip]){
+						local_table[j].cost = routes[i].cost + local_to_mid.cost;
+					}
+				} else if (routes[i].cost != INT_MAX && local_table[j].cost > routes[i].cost + local_to_mid.cost) {
+					if (Get_Neighbor_Cost(routes[i].dst_ip) == INT_MAX || Get_Neighbor_Cost(routes[i].dst_ip) > routes[i].cost + local_to_mid.cost || !neighbor_up[routes[i].dst_ip]) {
+						local_table[j].next_hop = local_to_mid.next_hop;
+						local_table[j].cost = routes[i].cost + local_to_mid.cost;
+					}
+					else {
+						local_table[j].next_hop = routes[i].dst_ip;
+						local_table[j].cost = Get_Neighbor_Cost(routes[i].dst_ip);
+					}
 				}
 				break; 
 			}
@@ -173,7 +203,6 @@ void Router::Inform_Neighbors() {
 			send_rip.msg = send_rip.msg + stringfy(rt);
 		}
 		this->Send(neighbours[i].first, this->port, send_rip);
-		respond_time[neighbours[i].first] = clock();
 	}
 }
 

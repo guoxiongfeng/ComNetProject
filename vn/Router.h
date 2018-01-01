@@ -61,7 +61,7 @@ class Router {
 		
 		vector<LocalRoute> local_table;
 		
-		map<string, clock_t> respond_time;
+		map<string, bool> is_On;
 		
 		map<string, bool> neighbor_up;
 		
@@ -86,7 +86,6 @@ class Router {
 		LocalRoute Get_Local_Route(string dst_ip);
 		
 		int Get_Local_Table_Index(string ip);
-		//string choosePath(string &dst_ip);
 		
 	public:
 		Router(string local_ip, int port);
@@ -111,7 +110,6 @@ class Router {
 
 		void setRoutingProtocol(int tag);
 		
-	//yanglikun
 };
 
 void setTrigger(bool b);
